@@ -11,22 +11,20 @@
         android:background="#212121"
         android:orientation="vertical">
 
-        <FrameLayout
-            android:id="@+id/display"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
+<FrameLayout
+    android:id="@+id/display"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:clipChildren="false">
 
-            <ImageView
-                android:id="@+id/canvas"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/image"
-                android:scaleType="fitCenter"
-                android:layout_gravity="center"
-                android:alpha="0.5" />
-
-        </FrameLayout>
+    <ImageView
+        android:id="@+id/canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/image"
+        android:scaleType="matrix" />
+</FrameLayout>
 
         <LinearLayout
             android:id="@+id/toolbar"

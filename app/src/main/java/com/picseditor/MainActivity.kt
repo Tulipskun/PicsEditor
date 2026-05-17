@@ -6,6 +6,7 @@ import android.view.WindowManager
 import android.graphics.Color
 import android.view.View
 import android.widget.Toast
+import android.widget.ImageView
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,15 +26,21 @@ class MainActivity : AppCompatActivity() {
 
         val main = findViewById<View>(R.id.Main)
         main.setPadding(0, 0, 0, navbarHeight)
-		
-		val btnCrop = findViewById<View>(R.id.Crop)
-val btnAdjust = findViewById<View>(R.id.Adjust)
-val btnEffect = findViewById<View>(R.id.Effect)
 
-btnCrop.setOnClickListener {
-    Toast.makeText(this, "Crop", Toast.LENGTH_SHORT).show()
-}
-btnAdjust.setOnClickListener { /* โค้ด */ }
-btnEffect.setOnClickListener { /* โค้ด */ }
+        val canvas = findViewById<ImageView>(R.id.canvas)
+        val zoomPan = ZoomPanHandler(this, canvas)
+        zoomPan.init()
+
+        findViewById<View>(R.id.display).setOnTouchListener { _, event ->
+            zoomPan.onTouch(event)
+        }
+
+        val btnCrop = findViewById<View>(R.id.Crop)
+        val btnAdjust = findViewById<View>(R.id.Adjust)
+        val btnEffect = findViewById<View>(R.id.Effect)
+
+        btnCrop.setOnClickListener {
+            Toast.makeText(this, "Crop", Toast.LENGTH_SHORT).show()
+        }
     }
 }
