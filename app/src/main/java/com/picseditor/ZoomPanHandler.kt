@@ -1,8 +1,11 @@
 package com.picseditor
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Matrix
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.animation.DecelerateInterpolator
@@ -16,18 +19,31 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
     private var mode = NONE
     private var lastX = 0f
     private var lastY = 0f
-    private var currentScale = 1f
+    private var lastMidX = 0f
+    private var lastMidY = 0f
 
-    private val minScale = 0.5f
-    private val maxScale = 8f
+    private var fitScale = 1f
+    private val minScaleRatio = 0.3f
+    private var maxScaleAbs = 20f
+
+    private val checkpoints = listOf(1f, 2f, 5f, 10f)
+    private var checkpointIndex = 0
+
+    private var isDoubleTapping = false
+    private var snapAnimator: ValueAnimator? = null
+
+    private fun getCurrentScale(): Float {
+        matrix.getValues(matrixValues)
+        return matrixValues[Matrix.MSCALE_X]
+    }
 
     private val scaleDetector = ScaleGestureDetector(context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val factor = detector.scaleFactor
-                val newScale = currentScale * factor
-                if (newScale in minScale..maxScale) {
-                    currentScale = newScale
+                val newScale = getCurrentScale() * factor
+                val absMin = fitScale * minScaleRatio
+                if (newScale in absMin..maxScaleAbs) {
                     matrix.postScale(factor, factor, detector.focusX, detector.focusY)
                     imageView.imageMatrix = matrix
                 }
@@ -35,7 +51,18 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
             }
         })
 
-    // เรียกหลัง layout เสร็จ เพื่อ center รูปตั้งต้น
+    private val gestureDetector = GestureDetector(context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                isDoubleTapping = true
+                snapAnimator?.cancel()
+                checkpointIndex = (checkpointIndex + 1) % checkpoints.size
+                val targetScale = fitScale * checkpoints[checkpointIndex]
+                animateScaleTo(targetScale, e.x, e.y)
+                return true
+            }
+        })
+
     fun init() {
         imageView.post {
             val drawable = imageView.drawable ?: return@post
@@ -44,20 +71,21 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
             val vw = imageView.width.toFloat()
             val vh = imageView.height.toFloat()
 
-            val scale = minOf(vw / dw, vh / dh)
-            currentScale = scale
+            fitScale = minOf(vw / dw, vh / dh)
+            maxScaleAbs = vw / 6f
 
-            val tx = (vw - dw * scale) / 2f
-            val ty = (vh - dh * scale) / 2f
+            val tx = (vw - dw * fitScale) / 2f
+            val ty = (vh - dh * fitScale) / 2f
 
             matrix.reset()
-            matrix.postScale(scale, scale)
+            matrix.postScale(fitScale, fitScale)
             matrix.postTranslate(tx, ty)
             imageView.imageMatrix = matrix
         }
     }
 
     fun onTouch(event: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(event)
         scaleDetector.onTouchEvent(event)
 
         when (event.actionMasked) {
@@ -67,29 +95,77 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                 mode = DRAG
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                mode = ZOOM
+                if (event.pointerCount == 2) {
+                    lastMidX = (event.getX(0) + event.getX(1)) / 2f
+                    lastMidY = (event.getY(0) + event.getY(1)) / 2f
+                    mode = ZOOM
+                }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!scaleDetector.isInProgress && mode == DRAG) {
-                    val dx = event.x - lastX
-                    val dy = event.y - lastY
-                    matrix.postTranslate(dx, dy)
-                    imageView.imageMatrix = matrix
+                when {
+                    mode == DRAG && !scaleDetector.isInProgress -> {
+                        val dx = event.x - lastX
+                        val dy = event.y - lastY
+                        matrix.postTranslate(dx, dy)
+                        imageView.imageMatrix = matrix
+                        lastX = event.x
+                        lastY = event.y
+                    }
+                    mode == ZOOM && event.pointerCount >= 2 -> {
+                        val midX = (event.getX(0) + event.getX(1)) / 2f
+                        val midY = (event.getY(0) + event.getY(1)) / 2f
+                        matrix.postTranslate(midX - lastMidX, midY - lastMidY)
+                        imageView.imageMatrix = matrix
+                        lastMidX = midX
+                        lastMidY = midY
+                    }
                 }
-                lastX = event.x
-                lastY = event.y
             }
             MotionEvent.ACTION_POINTER_UP -> {
-                mode = DRAG
-                lastX = event.x
-                lastY = event.y
+                if (event.pointerCount == 2) {
+                    mode = DRAG
+                    val remaining = if (event.actionIndex == 0) 1 else 0
+                    lastX = event.getX(remaining)
+                    lastY = event.getY(remaining)
+                }
             }
             MotionEvent.ACTION_UP -> {
                 mode = NONE
-                snapBack()
+                if (!isDoubleTapping) snapBack()
+                isDoubleTapping = false
             }
         }
         return true
+    }
+
+    private fun animateScaleTo(targetScale: Float, pivotX: Float, pivotY: Float) {
+        matrix.getValues(matrixValues)
+        val startScale = matrixValues[Matrix.MSCALE_X]
+        val startTx = matrixValues[Matrix.MTRANS_X]
+        val startTy = matrixValues[Matrix.MTRANS_Y]
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { anim ->
+                val f = anim.animatedFraction
+                val scale = startScale + (targetScale - startScale) * f
+                val ratio = scale / startScale
+                matrixValues[Matrix.MSCALE_X] = scale
+                matrixValues[Matrix.MSCALE_Y] = scale
+                matrixValues[Matrix.MTRANS_X] = pivotX - ratio * (pivotX - startTx)
+                matrixValues[Matrix.MTRANS_Y] = pivotY - ratio * (pivotY - startTy)
+                matrix.setValues(matrixValues)
+                imageView.imageMatrix = matrix
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    isDoubleTapping = false
+                    snapBack()
+                }
+            })
+            start()
+        }
     }
 
     private fun snapBack() {
@@ -126,7 +202,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
 
         if (targetX == tx && targetY == ty) return
 
-        ValueAnimator.ofFloat(0f, 1f).apply {
+        snapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 250
             interpolator = DecelerateInterpolator()
             addUpdateListener { anim ->
@@ -141,6 +217,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
     }
 
     fun reset() {
+        checkpointIndex = 0
         init()
     }
 
