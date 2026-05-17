@@ -3,13 +3,64 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-
+   
+	<LinearLayout
+		android:id="@+id/Start"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:background="#212121"
+		android:gravity="center_horizontal|center_vertical"
+		android:orientation="vertical"
+		android:layout_gravity="center_horizontal|center_vertical">
+		<LinearLayout
+			android:id="@+id/btnImport"
+			android:layout_width="260dp"
+			android:layout_height="wrap_content"
+			android:layout_margin="12dp"
+			android:padding="8dp"
+			android:background="#FFFFFF"
+			android:gravity="center_horizontal|center_vertical"
+			android:orientation="horizontal"
+			android:layout_gravity="center_horizontal|center_vertical">
+			<TextView
+				android:id="@+id/txt_import"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:padding="8dp"
+				android:text="Import"
+				android:textSize="18sp"
+				android:textStyle="bold"
+				android:singleLine="true" />
+		</LinearLayout>
+		<LinearLayout
+			android:id="@+id/btnCreate"
+			android:layout_width="260dp"
+			android:layout_height="wrap_content"
+			android:layout_margin="12dp"
+			android:padding="8dp"
+			android:background="#FFFFFF"
+			android:gravity="center_horizontal|center_vertical"
+			android:orientation="horizontal"
+			android:layout_gravity="center_horizontal|center_vertical">
+			<TextView
+				android:id="@+id/txt_create"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:padding="8dp"
+				android:text="Create"
+				android:textSize="18sp"
+				android:textStyle="bold"
+				android:singleLine="true" />
+		</LinearLayout>
+	</LinearLayout>
+	
     <LinearLayout
         android:id="@+id/Main"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#212121"
-        android:orientation="vertical">
+        android:orientation="vertical"
+		android:visibility="gone">
 
 <FrameLayout
     android:id="@+id/display"

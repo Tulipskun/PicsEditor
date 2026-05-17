@@ -1,14 +1,39 @@
 package com.picseditor
 
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.OnBackPressedCallback
 import android.os.Bundle
 import android.view.WindowManager
 import android.graphics.Color
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
 import android.view.View
 import android.widget.Toast
 import android.widget.ImageView
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var canvas: ImageView
+    private lateinit var zoomPan: ZoomPanHandler
+
+    // Back callback สำหรับ Main → Start
+    // mode อื่น (crop, adjust ฯลฯ) ให้ addCallback() เพิ่มเองตอน enter mode
+    // Android จะเรียก callback ล่าสุดก่อนเสมอ (LIFO)
+    private val mainBackCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            showStart()
+        }
+    }
+
+    private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val bitmap = android.graphics.BitmapFactory.decodeStream(contentResolver.openInputStream(it))
+            showMain()
+            canvas.setImageBitmap(bitmap)
+            zoomPan.init()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setFlags(
@@ -24,23 +49,35 @@ class MainActivity : AppCompatActivity() {
         val navbarHeight = if (resourceId > 0)
             resources.getDimensionPixelSize(resourceId) else 0
 
-        val main = findViewById<View>(R.id.Main)
-        main.setPadding(0, 0, 0, navbarHeight)
+        findViewById<View>(R.id.Main).setPadding(0, 0, 0, navbarHeight)
 
-        val canvas = findViewById<ImageView>(R.id.canvas)
-        val zoomPan = ZoomPanHandler(this, canvas)
-        zoomPan.init()
+        canvas = findViewById(R.id.canvas)
+        zoomPan = ZoomPanHandler(this, canvas)
+
+        onBackPressedDispatcher.addCallback(this, mainBackCallback)
 
         findViewById<View>(R.id.display).setOnTouchListener { _, event ->
             zoomPan.onTouch(event)
         }
 
-        val btnCrop = findViewById<View>(R.id.Crop)
-        val btnAdjust = findViewById<View>(R.id.Adjust)
-        val btnEffect = findViewById<View>(R.id.Effect)
+        findViewById<View>(R.id.btnImport).setOnClickListener {
+            pickImage.launch("image/*")
+        }
 
-        btnCrop.setOnClickListener {
+        findViewById<View>(R.id.Crop).setOnClickListener {
             Toast.makeText(this, "Crop", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showMain() {
+        findViewById<View>(R.id.Start).visibility = View.GONE
+        findViewById<View>(R.id.Main).visibility = View.VISIBLE
+        mainBackCallback.isEnabled = true
+    }
+
+    private fun showStart() {
+        findViewById<View>(R.id.Main).visibility = View.GONE
+        findViewById<View>(R.id.Start).visibility = View.VISIBLE
+        mainBackCallback.isEnabled = false
     }
 }

@@ -66,6 +66,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
     fun init() {
         imageView.post {
             val drawable = imageView.drawable ?: return@post
+        drawable.isFilterBitmap = false
             val dw = drawable.intrinsicWidth.toFloat()
             val dh = drawable.intrinsicHeight.toFloat()
             val vw = imageView.width.toFloat()
