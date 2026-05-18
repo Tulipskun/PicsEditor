@@ -1,0 +1,21 @@
+<LinearLayout
+xmlns:android="http://schemas.android.com/apk/res/android"
+android:orientation="vertical"
+android:gravity="center"
+android:padding="30dp"
+android:layout_width="match_parent"
+android:layout_height="match_parent">
+
+<EditText
+android:id="@+id/keyBox"
+android:hint="Enter Key"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"/>
+
+<Button
+android:id="@+id/loginBtn"
+android:text="LOGIN"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"/>
+
+</LinearLayout>
