@@ -6,7 +6,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageView
 
-class CropOverlayView(context: Context, private val imageView: ImageView) : View(context) {
+class CropOverlayView(
+    context: Context,
+    private val imageView: ImageView,
+    private val zoomPan: ZoomPanHandler
+) : View(context) {
 
     var cropBitmap = RectF()
     var lockedRatio: Float? = null
@@ -26,9 +30,6 @@ class CropOverlayView(context: Context, private val imageView: ImageView) : View
     private val handlePaint = Paint().apply {
         color = Color.WHITE; style = Paint.Style.STROKE
         strokeWidth = 3f * dens; isAntiAlias = true; strokeCap = Paint.Cap.ROUND
-    }
-    private val dotPaint = Paint().apply {
-        color = 0xCCFFFFFF.toInt(); style = Paint.Style.FILL; isAntiAlias = true
     }
     private val gridPaint = Paint().apply {
         color = 0x33FFFFFF; style = Paint.Style.STROKE; strokeWidth = 0.8f * dens
@@ -73,24 +74,26 @@ class CropOverlayView(context: Context, private val imageView: ImageView) : View
 
         canvas.drawRect(sr, borderPaint)
 
+        // Corner handles — extend OUTWARD only
         val hl = handleLen
-        canvas.drawLine(sr.left, sr.top+hl, sr.left, sr.top, handlePaint)
-        canvas.drawLine(sr.left, sr.top, sr.left+hl, sr.top, handlePaint)
-        canvas.drawLine(sr.right-hl, sr.top, sr.right, sr.top, handlePaint)
-        canvas.drawLine(sr.right, sr.top, sr.right, sr.top+hl, handlePaint)
-        canvas.drawLine(sr.left, sr.bottom-hl, sr.left, sr.bottom, handlePaint)
-        canvas.drawLine(sr.left, sr.bottom, sr.left+hl, sr.bottom, handlePaint)
-        canvas.drawLine(sr.right-hl, sr.bottom, sr.right, sr.bottom, handlePaint)
-        canvas.drawLine(sr.right, sr.bottom, sr.right, sr.bottom-hl, handlePaint)
-
-        val dot = 5f * dens
-        canvas.drawCircle(sr.centerX(), sr.top, dot, dotPaint)
-        canvas.drawCircle(sr.centerX(), sr.bottom, dot, dotPaint)
-        canvas.drawCircle(sr.left, sr.centerY(), dot, dotPaint)
-        canvas.drawCircle(sr.right, sr.centerY(), dot, dotPaint)
+        canvas.drawLine(sr.left, sr.top, sr.left - hl, sr.top, handlePaint)
+        canvas.drawLine(sr.left, sr.top, sr.left, sr.top - hl, handlePaint)
+        canvas.drawLine(sr.right, sr.top, sr.right + hl, sr.top, handlePaint)
+        canvas.drawLine(sr.right, sr.top, sr.right, sr.top - hl, handlePaint)
+        canvas.drawLine(sr.left, sr.bottom, sr.left - hl, sr.bottom, handlePaint)
+        canvas.drawLine(sr.left, sr.bottom, sr.left, sr.bottom + hl, handlePaint)
+        canvas.drawLine(sr.right, sr.bottom, sr.right + hl, sr.bottom, handlePaint)
+        canvas.drawLine(sr.right, sr.bottom, sr.right, sr.bottom + hl, handlePaint)
+        // Edge lines are touch targets — no dot needed
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (e.pointerCount >= 2) {
+            active = Handle.NONE
+            zoomPan.onTouch(e)
+            invalidate()
+            return true
+        }
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
                 active = hitTest(e.x, e.y)
@@ -151,14 +154,17 @@ class CropOverlayView(context: Context, private val imageView: ImageView) : View
     private fun hitTest(x: Float, y: Float): Handle {
         val sr = screenRect(); val s = touchSlop
         fun near(a: Float, b: Float) = Math.abs(a-b) < s
-        if (near(x, sr.left)    && near(y, sr.top))       return Handle.TL
-        if (near(x, sr.right)   && near(y, sr.top))       return Handle.TR
-        if (near(x, sr.left)    && near(y, sr.bottom))    return Handle.BL
-        if (near(x, sr.right)   && near(y, sr.bottom))    return Handle.BR
-        if (near(x, sr.centerX()) && near(y, sr.top))     return Handle.T
-        if (near(x, sr.centerX()) && near(y, sr.bottom))  return Handle.B
-        if (near(x, sr.left)    && near(y, sr.centerY())) return Handle.L
-        if (near(x, sr.right)   && near(y, sr.centerY())) return Handle.R
+        // Corners first
+        if (near(x, sr.left)  && near(y, sr.top))    return Handle.TL
+        if (near(x, sr.right) && near(y, sr.top))    return Handle.TR
+        if (near(x, sr.left)  && near(y, sr.bottom)) return Handle.BL
+        if (near(x, sr.right) && near(y, sr.bottom)) return Handle.BR
+        // Full edges (excluding corner zones)
+        if (near(y, sr.top)    && x > sr.left + s && x < sr.right  - s) return Handle.T
+        if (near(y, sr.bottom) && x > sr.left + s && x < sr.right  - s) return Handle.B
+        if (near(x, sr.left)   && y > sr.top  + s && y < sr.bottom - s) return Handle.L
+        if (near(x, sr.right)  && y > sr.top  + s && y < sr.bottom - s) return Handle.R
+        // Inside = move
         if (sr.contains(x, y)) return Handle.MOVE
         return Handle.NONE
     }

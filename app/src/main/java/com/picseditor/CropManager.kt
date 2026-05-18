@@ -56,15 +56,21 @@ class CropManager(
 
     fun dismiss() {
         backCallback.isEnabled = false
+        zoomPan.onMatrixChanged = null
         if (::container.isInitialized) rootView.removeView(container)
     }
 
     private fun buildUI() {
+        val sbRes = ctx.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val statusBarH = if (sbRes > 0) ctx.resources.getDimensionPixelSize(sbRes) else 0
+        val nbRes = ctx.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val navBarH = if (nbRes > 0) ctx.resources.getDimensionPixelSize(nbRes) else 0
+
         container = FrameLayout(ctx).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         }
 
-        overlay = CropOverlayView(ctx, imageView).apply {
+        overlay = CropOverlayView(ctx, imageView, zoomPan).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         }
         val bmp = bitmap() ?: return
@@ -72,20 +78,26 @@ class CropManager(
         overlay.onChanged = { rect -> onOverlayChanged(rect) }
         overlay.onDragEnd = { pushUndo() }
         pushUndo()
+
+        zoomPan.onMatrixChanged = { overlay.invalidate() }
+
         container.addView(overlay)
-        container.addView(buildTopBar())
-        container.addView(buildBottomPanel())
+        container.addView(buildTopBar(statusBarH))
+        container.addView(buildBottomPanel(navBarH))
         rootView.addView(container)
         updateInfo(overlay.cropBitmap)
     }
 
-    private fun buildTopBar(): LinearLayout {
+    private fun buildTopBar(statusBarH: Int): LinearLayout {
         val bar = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(0xF0141414.toInt())
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(52f)).apply { gravity = Gravity.TOP }
-            setPadding(dp(4f), 0, dp(4f), 0)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(52f) + statusBarH
+            ).apply { gravity = Gravity.TOP }
+            setPadding(dp(4f), statusBarH, dp(4f), 0)
         }
         bar.addView(makeTextBtn("✕") { dismiss(); onCancel() })
         val tabRow = LinearLayout(ctx).apply {
@@ -104,21 +116,25 @@ class CropManager(
         return bar
     }
 
-    private fun buildBottomPanel(): LinearLayout {
+    private fun buildBottomPanel(navBarH: Int): LinearLayout {
         val panel = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xF0141414.toInt())
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.BOTTOM }
-            setPadding(dp(12f), dp(8f), dp(12f), dp(16f))
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.BOTTOM }
+            setPadding(dp(12f), dp(8f), dp(12f), dp(12f) + navBarH)
         }
-        // Info row
         val infoRow = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28f))
         }
         txtSize = infoLabel("W: ---  H: ---")
-        txtCoords = infoLabel("").apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+        txtCoords = infoLabel("").apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
         btnUndo = TextView(ctx).apply {
             text = "↩"; textSize = 18f; setTextColor(0xFF444444.toInt())
             setPadding(dp(8f), 0, 0, 0)
@@ -126,7 +142,12 @@ class CropManager(
         }
         infoRow.addView(txtSize); infoRow.addView(txtCoords); infoRow.addView(btnUndo)
         panel.addView(infoRow)
-        panel.addView(View(ctx).apply { setBackgroundColor(0xFF222222.toInt()); layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply { setMargins(0, dp(6f), 0, dp(6f)) } })
+        panel.addView(View(ctx).apply {
+            setBackgroundColor(0xFF222222.toInt())
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply {
+                setMargins(0, dp(6f), 0, dp(6f))
+            }
+        })
         panelRatio = buildRatioPanel()
         panelFree  = buildFreePanel()
         panelAuto  = buildAutoPanel()
@@ -210,9 +231,8 @@ class CropManager(
         if (ratio == null) { overlay.lockedRatio = null; return }
         val bmp = bitmap() ?: return
         val cw = overlay.cropBitmap.width()
-        var ch = cw / ratio
         val rect = RectF(overlay.cropBitmap.left, overlay.cropBitmap.top,
-                         overlay.cropBitmap.left + cw, overlay.cropBitmap.top + ch)
+                         overlay.cropBitmap.left + cw, overlay.cropBitmap.top + cw / ratio)
         if (rect.bottom > bmp.height) {
             rect.bottom = bmp.height.toFloat()
             rect.right = (rect.left + rect.height() * ratio).coerceAtMost(bmp.width.toFloat())
@@ -336,5 +356,7 @@ class CropManager(
         layoutParams = LinearLayout.LayoutParams(dp(52f), dp(32f))
     }
 
-    private fun spacerH(dpVal: Int) = Space(ctx).apply { layoutParams = LinearLayout.LayoutParams(dp(dpVal.toFloat()), 1) }
+    private fun spacerH(dpVal: Int) = Space(ctx).apply {
+        layoutParams = LinearLayout.LayoutParams(dp(dpVal.toFloat()), 1)
+    }
 }
