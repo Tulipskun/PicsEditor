@@ -30,6 +30,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
     private var checkpointIndex = 0
 
     private var isDoubleTapping = false
+    var onMatrixChanged: (() -> Unit)? = null
     private var snapAnimator: ValueAnimator? = null
 
     private fun getCurrentScale(): Float {
@@ -46,6 +47,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                 if (newScale in absMin..maxScaleAbs) {
                     matrix.postScale(factor, factor, detector.focusX, detector.focusY)
                     imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
                 }
                 return true
             }
@@ -82,6 +84,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
             matrix.postScale(fitScale, fitScale)
             matrix.postTranslate(tx, ty)
             imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
         }
     }
 
@@ -109,6 +112,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                         val dy = event.y - lastY
                         matrix.postTranslate(dx, dy)
                         imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
                         lastX = event.x
                         lastY = event.y
                     }
@@ -117,6 +121,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                         val midY = (event.getY(0) + event.getY(1)) / 2f
                         matrix.postTranslate(midX - lastMidX, midY - lastMidY)
                         imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
                         lastMidX = midX
                         lastMidY = midY
                     }
@@ -158,6 +163,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                 matrixValues[Matrix.MTRANS_Y] = pivotY - ratio * (pivotY - startTy)
                 matrix.setValues(matrixValues)
                 imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
@@ -212,6 +218,7 @@ class ZoomPanHandler(context: Context, private val imageView: ImageView) {
                 matrixValues[Matrix.MTRANS_Y] = ty + (targetY - ty) * f
                 matrix.setValues(matrixValues)
                 imageView.imageMatrix = matrix
+        onMatrixChanged?.invoke()
             }
             start()
         }
